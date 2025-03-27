@@ -1,57 +1,91 @@
-# Newton Raphson
-newton_raphson <- function(X, y, tol = 1e-6, max_iter = 1000) {
-  n <- nrow(X)
-  p <- ncol(X)
-  beta <- rep(0, p)
+logistic_combined <- function(X, y, method = "newton", max_iter = 100, tol = 1e-6) {
 
-  for (iter in 1:max_iter) {
-    p_hat <- 1 / (1 + exp(-X %*% beta))
-    grad <- t(X) %*% (y - p_hat)
-    H <- -t(X) %*% diag(as.vector(p_hat * (1 - p_hat))) %*% X
-    beta_new <- beta - solve(H) %*% grad
-    if (sum(abs(beta_new - beta)) < tol) {
-      beta <- beta_new
-      break
-    }
-    beta <- beta_new
+  # Menambahkan kolom 1 untuk intersep (bias)
+  X <- cbind(1, X)
+
+  # Fungsi Sigmoid
+  sigmoid <- function(z) 1 / (1 + exp(-z))
+
+  # Inisialisasi parameter theta
+  theta <- rep(0, ncol(X))
+
+  # Fungsi untuk metode Newton-Raphson
+  logistic_newton <- function(X, y) {
+    p <- sigmoid(X %*% theta)
+    gradient <- t(X) %*% (y - p)
+    H <- -t(X) %*% diag(as.vector(p * (1 - p))) %*% X
+    theta_new <- theta - solve(H) %*% gradient
+    return(theta_new)
   }
 
-  list(method = "Newton-Raphson", beta = beta, fit = p_hat)
-}
-
-# IRLS
-irls <- function(X, y, tol = 1e-6, max_iter = 1000) {
-  n <- nrow(X)
-  p <- ncol(X)
-  beta <- rep(0, p)
-
-  for (iter in 1:max_iter) {
-    p_hat <- 1 / (1 + exp(-X %*% beta))
-    W <- diag(as.vector(p_hat * (1 - p_hat)))
-    grad <- t(X) %*% (y - p_hat)
-    H <- t(X) %*% W %*% X
-    beta_new <- beta + solve(H) %*% grad
-    if (sum(abs(beta_new - beta)) < tol) {
-      beta <- beta_new
-      break
-    }
-    beta <- beta_new
+  # Fungsi untuk metode IRLS
+  logistic_irls <- function(X, y) {
+    p <- sigmoid(X %*% theta)
+    W <- diag(as.vector(p * (1 - p)))
+    theta_new <- solve(t(X) %*% W %*% X) %*% t(X) %*% (y - p)
+    return(theta_new)
   }
 
-  list(method = "IRLS", beta = beta, fit = p_hat)
-}
+  # Pemilihan metode
+  if (method == "newton") {
+    for (i in 1:max_iter) {
+      # Prediksi probabilitas
+      p <- sigmoid(X %*% theta)
 
-# Simulate data for testing
+      # Regresi Logistik menggunakan Newton-Raphson
+      theta_new <- logistic_newton(X, y)
+
+      # Cek konvergensi
+      if (max(abs(theta_new - theta)) < tol) {
+        break
+      }
+      theta <- theta_new
+    }
+  } else if (method == "irls") {
+    for (i in 1:max_iter) {
+      # Prediksi probabilitas
+      p <- sigmoid(X %*% theta)
+
+      # Regresi Logistik menggunakan IRLS
+      theta_new <- logistic_irls(X, y)
+
+      # Cek konvergensi
+      if (max(abs(theta_new - theta)) < tol) {
+        break
+      }
+      theta <- theta_new
+    }
+  }
+
+  # Hitung probabilitas (fit)
+  fit <- sigmoid(X %*% theta)
+
+  # Output
+  result <- list(
+    method = method,
+    beta = theta,
+    fit = fit
+  )
+
+  return(result)
+}
+# Contoh data
 set.seed(42)
-n <- 100
-X <- cbind(1, matrix(rnorm(n * 2), nrow = n))
-beta_true <- c(0.5, -1, 2)
-y <- rbinom(n, 1, 1 / (1 + exp(-X %*% beta_true)))
+X <- matrix(rnorm(100), ncol = 2)  # 50 sampel, 2 fitur
+y <- sample(c(0, 1), 50, replace = TRUE)
 
-# Run Newton-Raphson and IRLS
-newton_result <- newton_raphson(X, y)
-irls_result <- irls(X, y)
+# Menggunakan metode Newton-Raphson
+result_newton <- logistic_combined(X, y, method = "newton")
+cat("Method:", result_newton$method, "\n")
+cat("Beta (Parameter):\n")
+print(result_newton$beta)
+cat("Fit (Probability):\n")
+print(result_newton$fit)
 
-# Display results
-print(newton_result)
-print(irls_result)
+# Menggunakan metode IRLS
+result_irls <- logistic_combined(X, y, method = "irls")
+cat("\nMethod:", result_irls$method, "\n")
+cat("Beta (Parameter):\n")
+print(result_irls$beta)
+cat("Fit (Probability):\n")
+print(result_irls$fit)
